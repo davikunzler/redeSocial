@@ -1,38 +1,49 @@
-// src/screens/HomeScreen.js
-
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from "react";
 import {
-  View, Text, Button, StyleSheet, Alert,
-  FlatList, TextInput, TouchableOpacity, ActivityIndicator, Image
-} from 'react-native';
-import AuthContext from '../context/AuthContext';
-import api from '../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker'; // <-- Novo
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  Alert,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  Image,
+} from "react-native";
+import AuthContext from "../context/AuthContext";
+import api from "../services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker"; // <-- Novo
 
 const HomeScreen = ({ navigation }) => {
   const { signOut } = useContext(AuthContext);
   const [posts, setPosts] = useState([]);
-  const [newPostTitle, setNewPostTitle] = useState('');
-  const [newPostContent, setNewPostContent] = useState('');
+  const [newPostTitle, setNewPostTitle] = useState("");
+  const [newPostContent, setNewPostContent] = useState("");
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [userLikes, setUserLikes] = useState({});
+  const [user, setUser] = useState(null);
+  const [userFavorites, setUserFavorites] = useState({});
   const [currentUserId, setCurrentUserId] = useState(null);
   const [newPostImageUri, setNewPostImageUri] = useState(null); // <-- Novo: URI da imagem do novo post
-
   useEffect(() => {
     const loadUserId = async () => {
       try {
-        const userDataString = await AsyncStorage.getItem('userData');
+        const userDataString = await AsyncStorage.getItem("userData");
         if (userDataString) {
           const userData = JSON.parse(userDataString);
           setCurrentUserId(userData.id);
+          setUser(userData); // Define os dados do usuário
         }
       } catch (error) {
-        console.error('Erro ao carregar dados do usuário do AsyncStorage:', error);
+        console.error(
+          "Erro ao carregar dados do usuário do AsyncStorage:",
+          error
+        );
       }
     };
     loadUserId();
@@ -40,9 +51,13 @@ const HomeScreen = ({ navigation }) => {
 
     // Pedir permissão para acessar a galeria de imagens
     (async () => {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão Negada', 'Desculpe, precisamos de permissões de galeria para isso funcionar!');
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permissão Negada",
+          "Desculpe, precisamos de permissões de galeria para isso funcionar!"
+        );
       }
     })();
   }, [searchTerm, currentUserId]);
@@ -58,21 +73,31 @@ const HomeScreen = ({ navigation }) => {
       if (currentUserId) {
         try {
           const likesResponse = await api.get(`/users/${currentUserId}/likes`, {
-            headers: { Authorization: `Bearer ${await AsyncStorage.getItem('userToken')}` }
+            headers: {
+              Authorization: `Bearer ${await AsyncStorage.getItem(
+                "userToken"
+              )}`,
+            },
           });
-          likesResponse.data.forEach(like => {
+          likesResponse.data.forEach((like) => {
             initialUserLikes[like.post_id] = true;
           });
         } catch (likesError) {
-          console.error('Erro ao buscar likes do usuário para inicialização:', likesError.response?.data || likesError.message);
+          console.error(
+            "Erro ao buscar likes do usuário para inicialização:",
+            likesError.response?.data || likesError.message
+          );
         }
       }
       setUserLikes(initialUserLikes);
 
       setPosts(response.data);
     } catch (error) {
-      console.error('Erro ao buscar posts:', error.response?.data || error.message);
-      Alert.alert('Erro', 'Não foi possível carregar os posts.');
+      console.error(
+        "Erro ao buscar posts:",
+        error.response?.data || error.message
+      );
+      Alert.alert("Erro", "Não foi possível carregar os posts.");
     } finally {
       setLoadingPosts(false);
     }
@@ -93,15 +118,18 @@ const HomeScreen = ({ navigation }) => {
 
   const handleCreatePost = async () => {
     if (!newPostTitle.trim() || !newPostContent.trim()) {
-      Alert.alert('Erro', 'Título e conteúdo do post não podem ser vazios.');
+      Alert.alert("Erro", "Título e conteúdo do post não podem ser vazios.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
+      const userToken = await AsyncStorage.getItem("userToken");
       if (!userToken) {
-        Alert.alert('Erro de Autenticação', 'Você precisa estar logado para criar um post.');
+        Alert.alert(
+          "Erro de Autenticação",
+          "Você precisa estar logado para criar um post."
+        );
         signOut();
         return;
       }
@@ -110,42 +138,62 @@ const HomeScreen = ({ navigation }) => {
       if (newPostImageUri) {
         // Faça o upload da imagem do post primeiro
         const formData = new FormData();
-        formData.append('postImage', {
+        formData.append("postImage", {
           uri: newPostImageUri,
           name: `post_${currentUserId}_${Date.now()}.jpg`,
-          type: 'image/jpeg',
+          type: "image/jpeg",
         });
 
         try {
-          const uploadResponse = await api.post('/upload/post-image', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              'Authorization': `Bearer ${userToken}`,
-            },
-          });
+          const uploadResponse = await api.post(
+            "/upload/post-image",
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+                Authorization: `Bearer ${userToken}`,
+              },
+            }
+          );
           imageUrlToSave = uploadResponse.data.imageUrl; // URL retornada pelo backend
         } catch (uploadError) {
-          console.error('Erro ao fazer upload da imagem do post:', uploadError.response?.data || uploadError.message);
-          Alert.alert('Erro de Upload', 'Não foi possível fazer upload da imagem do post.');
+          console.error(
+            "Erro ao fazer upload da imagem do post:",
+            uploadError.response?.data || uploadError.message
+          );
+          Alert.alert(
+            "Erro de Upload",
+            "Não foi possível fazer upload da imagem do post."
+          );
           setIsSubmitting(false);
           return;
         }
       }
 
       await api.post(
-        '/posts',
-        { title: newPostTitle, content: newPostContent, image_url: imageUrlToSave }, // Envia a URL da imagem
+        "/posts",
+        {
+          title: newPostTitle,
+          content: newPostContent,
+          image_url: imageUrlToSave,
+        }, // Envia a URL da imagem
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
 
-      Alert.alert('Sucesso', 'Post criado com sucesso!');
-      setNewPostTitle('');
-      setNewPostContent('');
+      Alert.alert("Sucesso", "Post criado com sucesso!");
+      setNewPostTitle("");
+      setNewPostContent("");
       setNewPostImageUri(null); // Limpa a imagem selecionada
       fetchPosts(); // Recarrega os posts
     } catch (error) {
-      console.error('Erro ao criar post:', error.response?.data || error.message);
-      Alert.alert('Erro ao Criar Post', error.response?.data?.message || 'Ocorreu um erro ao criar o post.');
+      console.error(
+        "Erro ao criar post:",
+        error.response?.data || error.message
+      );
+      Alert.alert(
+        "Erro ao Criar Post",
+        error.response?.data?.message || "Ocorreu um erro ao criar o post."
+      );
       if (error.response?.status === 401 || error.response?.status === 403) {
         signOut();
       }
@@ -156,9 +204,9 @@ const HomeScreen = ({ navigation }) => {
 
   const handleToggleLike = async (postId) => {
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
+      const userToken = await AsyncStorage.getItem("userToken");
       if (!userToken) {
-        Alert.alert('Erro', 'Você precisa estar logado para curtir posts.');
+        Alert.alert("Erro", "Você precisa estar logado para curtir posts.");
         signOut();
         return;
       }
@@ -169,22 +217,32 @@ const HomeScreen = ({ navigation }) => {
       );
 
       const liked = response.data.liked;
-      setUserLikes(prevLikes => ({
+      setUserLikes((prevLikes) => ({
         ...prevLikes,
         [postId]: liked,
       }));
 
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
           post.id === postId
-            ? { ...post, likes_count: liked ? post.likes_count + 1 : Math.max(0, post.likes_count - 1) }
+            ? {
+                ...post,
+                likes_count: liked
+                  ? post.likes_count + 1
+                  : Math.max(0, post.likes_count - 1),
+              }
             : post
         )
       );
-
     } catch (error) {
-      console.error('Erro ao curtir/descurtir:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível processar o like.');
+      console.error(
+        "Erro ao curtir/descurtir:",
+        error.response?.data || error.message
+      );
+      Alert.alert(
+        "Erro",
+        error.response?.data?.message || "Não foi possível processar o like."
+      );
       if (error.response?.status === 401 || error.response?.status === 403) {
         signOut();
       }
@@ -193,21 +251,34 @@ const HomeScreen = ({ navigation }) => {
 
   const handleToggleFavorite = async (postId) => {
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
+      const userToken = await AsyncStorage.getItem("userToken");
       if (!userToken) {
-        Alert.alert('Erro', 'Você precisa estar logado para favoritar posts.');
+        Alert.alert("Erro", "Você precisa estar logado para favoritar posts.");
         signOut();
         return;
       }
+
       const response = await api.post(
         `/posts/${postId}/favorite`,
         {},
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
-      Alert.alert('Sucesso', response.data.message);
+
+      // Atualiza o estado local
+      setUserFavorites((prev) => ({
+        ...prev,
+        [postId]: !prev[postId],
+      }));
     } catch (error) {
-      console.error('Erro ao favoritar/desfavoritar:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível processar o favorito.');
+      console.error(
+        "Erro ao favoritar/desfavoritar:",
+        error.response?.data || error.message
+      );
+      Alert.alert(
+        "Erro",
+        error.response?.data?.message ||
+          "Não foi possível processar o favorito."
+      );
       if (error.response?.status === 401 || error.response?.status === 403) {
         signOut();
       }
@@ -215,11 +286,12 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja realmente sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', onPress: async () => {
-        await signOut();
-      }}
+    Alert.alert("Sair", "Deseja realmente sair?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        onPress: signOut(),
+      },
     ]);
   };
 
@@ -227,32 +299,58 @@ const HomeScreen = ({ navigation }) => {
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
         {item.profile_picture_url ? (
-          <Image source={{ uri: `http://localhost:3001${item.profile_picture_url}` }} style={styles.profilePicture} />
+          <Image
+            source={{ uri: `http://localhost:3001${item.profile_picture_url}` }}
+            style={styles.profilePicture}
+          />
         ) : (
-          <Ionicons name="person-circle" size={40} color="#ccc" style={styles.profilePicturePlaceholder} />
+          <Ionicons
+            name="person-circle"
+            size={40}
+            color="#ccc"
+            style={styles.profilePicturePlaceholder}
+          />
         )}
         <Text style={styles.postUsername}>{item.username}</Text>
       </View>
       <Text style={styles.postTitle}>{item.title}</Text>
       <Text style={styles.postContent}>{item.content}</Text>
-      {item.image_url && <Image source={{ uri: `http://localhost:3001${item.image_url}` }} style={styles.postImage} />}
+      {item.image_url && (
+        <Image
+          source={{ uri: `http://localhost:3001${item.image_url}` }}
+          style={styles.postImage}
+        />
+      )}
       <View style={styles.postFooter}>
-        <TouchableOpacity style={styles.interactionButton} onPress={() => handleToggleLike(item.id)}>
+        <TouchableOpacity
+          style={styles.interactionButton}
+          onPress={() => handleToggleLike(item.id)}
+        >
           <Ionicons
-            name={userLikes[item.id] ? 'heart' : 'heart-outline'}
+            name={userLikes[item.id] ? "heart" : "heart-outline"}
             size={24}
-            color={userLikes[item.id] ? 'red' : '#666'}
+            color={userLikes[item.id] ? "red" : "#666"}
           />
           <Text style={styles.interactionText}>{item.likes_count}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.interactionButton} onPress={() => navigation.navigate('PostDetail', { postId: item.id })}>
+        <TouchableOpacity
+          style={styles.interactionButton}
+          onPress={() => navigation.navigate("PostDetail", { postId: item.id })}
+        >
           <Ionicons name="chatbubble-outline" size={24} color="#666" />
           <Text style={styles.interactionText}>{item.comments_count}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.interactionButton} onPress={() => handleToggleFavorite(item.id)}>
-          <Ionicons name="bookmark-outline" size={24} color="#666" />
+        <TouchableOpacity
+          style={styles.interactionButton}
+          onPress={() => handleToggleFavorite(item.id)}
+        >
+          <Ionicons
+            name={userFavorites[item.id] ? "bookmark" : "bookmark-outline"}
+            size={24}
+            color={userFavorites[item.id] ? "gold" : "#666"}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -263,10 +361,16 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.mainTitle}>Fórum do App</Text>
         <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.profileButton}>
-            <Ionicons name="person-circle-outline" size={30} color="#007bff" />
+          <Text style={styles.username}>Olá, {user ? user.username : ""}</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Profile")}
+            style={styles.profileButton}
+          >
+            <Ionicons name="person-circle-outline" size={30} color="#ffcc00" />
           </TouchableOpacity>
-          <Button title="Sair" onPress={handleLogout} />
+          <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
+            <Text style={styles.signOutButtonText}>Sair</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -293,80 +397,101 @@ const HomeScreen = ({ navigation }) => {
           onChangeText={setNewPostTitle}
         />
         <TextInput
-          style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+          style={[styles.input, { height: 100, textAlignVertical: "top" }]}
           placeholder="O que você quer compartilhar?"
           value={newPostContent}
           onChangeText={setNewPostContent}
           multiline
         />
-        <TouchableOpacity onPress={pickPostImage} style={styles.imagePickerButton}>
-          <Ionicons name="image-outline" size={24} color="#007bff" />
+        <TouchableOpacity
+          onPress={pickPostImage}
+          style={styles.imagePickerButton}
+        >
+          <Ionicons name="image-outline" size={24} color="#ffcc00" />
           <Text style={styles.imagePickerButtonText}>Adicionar Imagem</Text>
         </TouchableOpacity>
         {newPostImageUri && (
-          <Image source={{ uri: newPostImageUri }} style={styles.previewImage} />
+          <Image
+            source={{ uri: newPostImageUri }}
+            style={styles.previewImage}
+          />
         )}
-        <Button
-          title={isSubmitting ? "Publicando..." : "Criar Post"}
+        <TouchableOpacity
+          style={[
+            styles.createPostButton,
+            isSubmitting && styles.createPostButtonDisabled,
+          ]}
           onPress={handleCreatePost}
           disabled={isSubmitting}
-        />
+        >
+          <Text style={styles.createPostButtonText}>
+            {isSubmitting ? "Publicando..." : "Criar Post"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Lista de Posts */}
       {loadingPosts ? (
-        <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20 }} />
+        <ActivityIndicator
+          size="large"
+          color="#ffcc00"
+          style={{ marginTop: 20 }}
+        />
       ) : (
         <FlatList
           data={posts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderPostItem}
           contentContainerStyle={styles.postList}
-          ListEmptyComponent={<Text style={styles.noPostsText}>Nenhum post encontrado. Tente ajustar sua pesquisa ou seja o primeiro a postar!</Text>}
+          ListEmptyComponent={
+            <Text style={styles.noPostsText}>
+              Nenhum post encontrado. Tente ajustar sua pesquisa ou seja o
+              primeiro a postar!
+            </Text>
+          }
         />
       )}
     </View>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: "#000", // fundo preto
     paddingTop: 40,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    backgroundColor: '#fff',
+    borderBottomColor: "#333",
+    backgroundColor: "#111", // preto mais claro
   },
   mainTitle: {
     fontSize: 26,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#fff", // branco
   },
   headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   profileButton: {
     marginRight: 15,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#111",
     borderRadius: 8,
     margin: 15,
     paddingHorizontal: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.5,
     shadowRadius: 2,
     elevation: 3,
   },
@@ -374,51 +499,53 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     fontSize: 16,
+    color: "#fff", // texto branco
   },
   searchButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: "#ffcc00", // amarelo destaque
     padding: 8,
     borderRadius: 5,
   },
   createPostContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#111",
     padding: 20,
     marginHorizontal: 15,
     marginBottom: 15,
     borderRadius: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.4,
     shadowRadius: 3,
     elevation: 5,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#333",
     borderRadius: 5,
     padding: 10,
     marginBottom: 10,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#222",
+    color: "#fff", // texto branco
   },
-  imagePickerButton: { // Novo estilo
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e9f5ff',
+  imagePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#333",
     padding: 10,
     borderRadius: 5,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginBottom: 10,
   },
-  imagePickerButtonText: { // Novo estilo
+  imagePickerButtonText: {
     marginLeft: 10,
-    color: '#007bff',
-    fontWeight: 'bold',
+    color: "#ffcc00", // amarelo
+    fontWeight: "bold",
   },
-  previewImage: { // Novo estilo
-    width: '100%',
+  previewImage: {
+    width: "100%",
     height: 150,
     borderRadius: 8,
-    resizeMode: 'cover',
+    resizeMode: "cover",
     marginBottom: 10,
   },
   postList: {
@@ -426,19 +553,19 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   postCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#111",
     padding: 15,
     borderRadius: 10,
     marginBottom: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.5,
     shadowRadius: 2,
     elevation: 3,
   },
   postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
   },
   profilePicture: {
@@ -447,57 +574,92 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
+  username: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff", // branco
+    marginBottom: 5,
+  },
   profilePicturePlaceholder: {
     marginRight: 10,
   },
   postUsername: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 16,
-    color: '#555',
+    color: "#ddd",
   },
   postTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
-    color: '#333',
+    color: "#fff",
   },
   postContent: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#666',
+    color: "#ccc",
     marginBottom: 10,
   },
   postImage: {
-    width: '100%',
+    width: "100%",
     height: 200,
     borderRadius: 8,
     marginTop: 10,
-    resizeMode: 'cover',
+    resizeMode: "cover",
   },
   postFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: "#333",
   },
   interactionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
   },
   interactionText: {
     marginLeft: 5,
     fontSize: 14,
-    color: '#666',
+    color: "#ccc",
   },
   noPostsText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 50,
     fontSize: 16,
-    color: '#777',
-  }
+    color: "#aaa",
+  },
+
+  signOutButton: {
+    backgroundColor: "#ffcc00", // red background
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  signOutButtonText: {
+    color: "#fff", // white text
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+
+  createPostButton: {
+    backgroundColor: "#FFD700", // gold/yellow
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  createPostButtonDisabled: {
+    backgroundColor: "#B8860B", // darker gold when disabled
+  },
+  createPostButtonText: {
+    color: "#000", // black text
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });
 
 export default HomeScreen;

@@ -294,13 +294,15 @@ const HomeScreen = ({ navigation }) => {
       },
     ]);
   };
-
   const renderPostItem = ({ item }) => (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
         {item.profile_picture_url ? (
           <Image
-            source={{ uri: `http://localhost:3001${item.profile_picture_url}` }}
+            // use o IP da sua máquina em vez de localhost quando for rodar no celular
+            source={{
+              uri: `http://192.168.1.10:3001${item.profile_picture_url}`,
+            }}
             style={styles.profilePicture}
           />
         ) : (
@@ -313,14 +315,17 @@ const HomeScreen = ({ navigation }) => {
         )}
         <Text style={styles.postUsername}>{item.username}</Text>
       </View>
+
       <Text style={styles.postTitle}>{item.title}</Text>
       <Text style={styles.postContent}>{item.content}</Text>
+
       {item.image_url && (
         <Image
-          source={{ uri: `http://localhost:3001${item.image_url}` }}
+          source={{ uri: `http://192.168.1.10:3001${item.image_url}` }}
           style={styles.postImage}
         />
       )}
+
       <View style={styles.postFooter}>
         <TouchableOpacity
           style={styles.interactionButton}
@@ -366,7 +371,25 @@ const HomeScreen = ({ navigation }) => {
             onPress={() => navigation.navigate("Profile")}
             style={styles.profileButton}
           >
-            <Ionicons name="person-circle-outline" size={30} color="#ffcc00" />
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Profile")}
+              style={styles.profileButton}
+            >
+              {user?.profile_picture_url ? (
+                <Image
+                  source={{
+                    uri: `http://localhost:3001${user.profile_picture_url}`,
+                  }}
+                  style={styles.headerProfilePicture}
+                />
+              ) : (
+                <Ionicons
+                  name="person-circle-outline"
+                  size={30}
+                  color="#ffcc00"
+                />
+              )}
+            </TouchableOpacity>
           </TouchableOpacity>
           <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
             <Text style={styles.signOutButtonText}>Sair</Text>
